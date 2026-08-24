@@ -41,6 +41,10 @@
   import { AXIS_PB_QUICK_TAGS } from '../../presetBrowser/presetBrowserWorkbenchQuery';
   import { axisPbRowAnatomy } from '../../presetBrowser/presetBrowserWorkbenchRowChips';
   import {
+    axisPbRowClickIntent,
+    axisPbRowDoubleClickIntent
+  } from '../../presetBrowser/presetBrowserWorkbenchRowGesture';
+  import {
     detailBlockNodes,
     nextBlockFocus
   } from '../../presetBrowser/presetBrowserWorkbenchDetailBlockChips';
@@ -340,9 +344,10 @@
   });
 
   function onRowClick(entry: AxisPresetBrowserEntrySummary, event: MouseEvent) {
-    if (event.metaKey || event.ctrlKey) {
+    const intent = axisPbRowClickIntent(event);
+    if (intent === 'mark') {
       axisPresetBrowserWorkbenchController.toggleMark(entry.id);
-    } else if (event.shiftKey) {
+    } else if (intent === 'markRange') {
       axisPresetBrowserWorkbenchController.markRange(data.order, entry.id);
     } else {
       selectEntry(entry);
@@ -362,6 +367,7 @@
     axisPresetBrowserWorkbenchController.openSource(sourceId);
   }
 
+  // Plain click: select only. Populates the detail pane + sets the range anchor, no device I/O.
   function selectEntry(entry: AxisPresetBrowserEntrySummary) {
     axisPresetBrowserWorkbenchController.selectEntry(entry.id);
   }
@@ -761,7 +767,7 @@
           aria-selected={snapshot.entryId === entry.id}
           tabindex="0"
           onclick={(e) => onRowClick(entry, e)}
-          ondblclick={() => (canRename(entry) ? beginRename(entry) : loadEntry(entry))}
+          ondblclick={() => axisPbRowDoubleClickIntent({ canRename: canRename(entry) }) === 'load' && loadEntry(entry)}
           oncontextmenu={(e) => onRowContext(e, entry)}
           onkeydown={(e) => {
             if (e.key === 'Enter') loadEntry(entry);
@@ -1275,6 +1281,8 @@
     border-radius: 8px;
     background: var(--bg2);
     cursor: pointer;
+    /* Double click is the load gesture, so it must not also select the row's text. */
+    user-select: none;
   }
   .preset-row:hover {
     background: color-mix(in srgb, var(--accent) 4%, var(--bg2));
@@ -1311,6 +1319,8 @@
     padding: 0 8px;
     font: 600 12px/1 var(--font-mono);
     outline: none;
+    /* Opt back in — the row suppresses selection, but the rename field is real text entry. */
+    user-select: text;
   }
   .tag-pills {
     display: flex;
@@ -1352,7 +1362,6 @@
     color: color-mix(in srgb, var(--textdim) 65%, transparent);
     font: 600 11px/1 var(--font-ui);
     font-style: normal;
-    user-select: none;
   }
   .chain-node {
     display: inline-flex;
