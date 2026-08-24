@@ -132,7 +132,7 @@ class LibraryStore {
   paramQueries = $state<ParamQuery[]>([]);
   /** Hydrated device params, keyed by entry id. Persisted in IndexedDB (too big for localStorage) and
    *  loaded into memory on launch, so the param index survives reloads. */
-  #paramsCache = $state<Record<string, DecodedBlock[]>>({});
+  #paramsCache = $state.raw<Record<string, DecodedBlock[]>>({});
   /** Raw .syx bytes for imported file/folder presets (id → byte array), so they load live to the edit
    *  buffer. Persisted in IndexedDB. */
   #fileBytes = $state<Record<string, number[]>>({});
