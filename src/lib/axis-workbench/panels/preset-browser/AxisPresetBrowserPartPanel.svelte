@@ -42,6 +42,7 @@
   import { createAxisPresetBrowserWorkbenchHost } from '../../presetBrowser/presetBrowserWorkbenchHost';
   import { applyRowCap } from '../../presetBrowser/presetBrowserWorkbenchLayout';
   import { AXIS_PB_QUICK_TAGS } from '../../presetBrowser/presetBrowserWorkbenchQuery';
+  import { presetRecency } from '../../../presetRecency.svelte';
   import { axisPbRowAnatomy } from '../../presetBrowser/presetBrowserWorkbenchRowChips';
   import {
     axisPbRowClickIntent,
@@ -131,6 +132,8 @@
     sourceId: snapshot.sourceId,
     selectedEntryId: snapshot.entryId,
     tagsOf: library.tagsOf,
+    // Reads presetRecency.map inside this $derived, so a load re-sorts the list live.
+    lastLoadedAt: presetRecency.at,
     conditions: activeConditions,
     simpleQuery: snapshot.advanced ? '' : snapshot.simpleQ,
     sort: snapshot.sort,
@@ -689,6 +692,7 @@
         <button type="button" class:on={snapshot.sort === 'num'} onclick={() => axisPresetBrowserWorkbenchController.setSort('num')}>#</button>
         <button type="button" class:on={snapshot.sort === 'name'} onclick={() => axisPresetBrowserWorkbenchController.setSort('name')}>A-Z</button>
         <button type="button" class:on={snapshot.sort === 'cpu'} onclick={() => axisPresetBrowserWorkbenchController.setSort('cpu')}>CPU</button>
+        <button type="button" class:on={snapshot.sort === 'recent'} onclick={() => axisPresetBrowserWorkbenchController.setSort('recent')}>RECENT</button>
       </div>
       <!-- §2.2/§3.3 Save filter → opens the inline name input in the sources sidebar. -->
       <button
@@ -1551,6 +1555,12 @@
     align-items: center;
     justify-content: space-between;
     gap: 8px;
+    /* The fourth sort segment pushes this row past a narrow dock's width — wrap rather than squash
+       the buttons into unreadable slivers. */
+    flex-wrap: wrap;
+  }
+  .query-controls > .sort-seg {
+    flex: 0 0 auto;
   }
   .adv-toggle {
     display: flex;
