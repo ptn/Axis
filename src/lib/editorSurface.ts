@@ -68,6 +68,8 @@ export interface EditorSurface {
   openRetype: () => void;
   openCabPicker: () => void;
   applyCab: (writes: { paramId: number; value: number }[]) => Promise<void>;
+  readonly isV2: boolean;
+  applyAmpInTheRoom: () => Promise<void>;
   toggleBypass: (cell?: Cell) => Promise<void>;
   setChannel: (ch: string) => Promise<void>;
 

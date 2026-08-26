@@ -325,6 +325,10 @@ class ConvertEditor {
   applyCab = async (_writes: { paramId: number; value: number }[]): Promise<void> => {
     /* cab editing disabled offline */
   };
+  readonly isV2 = false; // offline buffer — no live device to gate a gen3-only batch write against
+  applyAmpInTheRoom = async (): Promise<void> => {
+    /* batch device writes disabled offline */
+  };
   toggleBypass = async (cell?: Cell): Promise<void> => {
     if (this.#isGrid) {
       const layout = this.#ensureGrid();

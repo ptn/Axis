@@ -10,6 +10,8 @@
   import { blockHelp, helpSlugForPack, resetHelpCache } from './help';
   import { theme } from './theme.svelte';
   import { resolveAxisGridMetrics, resolveAxisGridPresentation, type AxisGridView } from './axis-workbench/gridView';
+  import { menuPositionFromPointer, type WorkbenchMenuItem, type WorkbenchMenuPosition } from './workbench/svelte/contextMenu';
+  import ContextMenu from './workbench/svelte/ContextMenu.svelte';
 
   // optional grid-view override (workbench gridbar). 'full' fixes tiles at the block-size px and
   // scrolls; 'map' pins the glyph minimap; 'auto' fits to the pane and steps full → map as the pane
@@ -657,6 +659,31 @@
       gridChangePage(dx < 0 ? 1 : -1);
     }
   }
+
+  // ── preset-wide right-click menu (empty grid canvas, not a placed block/shunt) ──
+  let gridMenuOpen = $state(false);
+  let gridMenuPos = $state<WorkbenchMenuPosition>({ x: 0, y: 0 });
+  // pack slugs are capitalized (catalog.ts CATALOG keys), e.g. 'Cab' / 'Amp'.
+  const hasCabOrAmp = $derived(editor.layout.cells.some((c) => c.pack === 'Cab' || c.pack === 'Amp'));
+  const gridMenuItems = $derived.by<WorkbenchMenuItem[]>(() => {
+    if (!gridMenuOpen) return [];
+    return [{
+      id: 'amp-in-the-room',
+      label: 'Amp in the Room',
+      hint: 'Cab + Amp',
+      disabled: !editor.isV2 || !hasCabOrAmp,
+      run: () => void editor.applyAmpInTheRoom()
+    }];
+  });
+  function onGridContextMenu(e: MouseEvent) {
+    if ((e.target as HTMLElement).closest('.cell.block, .cell.shunt')) return; // per-block right-click, if ever added, wins
+    e.preventDefault();
+    gridMenuPos = menuPositionFromPointer(e);
+    gridMenuOpen = true;
+  }
+  function closeGridMenu() {
+    gridMenuOpen = false;
+  }
 </script>
 
 {#if editor.linkFrom}
@@ -681,6 +708,7 @@
   ontouchend={touchEnd}
   onpointerdown={bgDown}
   onpointerup={bgUp}
+  oncontextmenu={onGridContextMenu}
 >
   {#if paged && editor.status === 'ready' && pageCount > 1}
     <!-- svelte-ignore a11y_consider_explicit_label -->
@@ -926,6 +954,8 @@
     <span>Drop here to delete</span>
   </div>
 {/if}
+
+<ContextMenu open={gridMenuOpen} position={gridMenuPos} items={gridMenuItems} label="Grid actions" onClose={closeGridMenu} />
 
 <style>
   /* armed tap-to-connect bar (mock: gridLinkBar) — sits above the grid so it survives paging */

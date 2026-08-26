@@ -15,7 +15,7 @@ import { resolveTabs, loadLayouts, saveLayouts, newTabId, loadSwipe, saveSwipe, 
 import { geqBandsFromLayout } from './eq';
 import { surfApplyRemote } from './surfaceStore.svelte';
 import { isRemoteBuild } from './cloudBrowser';
-import { paramValue } from './format';
+import { paramValue, normFromValue } from './format';
 import { presetRecency } from './presetRecency.svelte';
 import type { NamedParam, EnumParam, TabDef, ResolvedTab, MeterVal, DetectResult, ConnPick, ConnInfo, ProfileKey, DeviceLayout, DebugReport, DeviceEvent, TelemetryMode, TrafficSnapshot } from './types';
 import type { EditorSurface } from './editorSurface';
@@ -1662,6 +1662,74 @@ class EditorStore {
     for (const w of writes) await forgefx.setParam(c.effectId, w.paramId, w.value, false).catch(() => {});
     history.checkpoint(`${c.display} cab changed`, false); // logged, not undoable (old slot state isn't captured) — v1 limitation
     await this.#loadParams();
+  };
+
+  /** "Amp in the Room": push every Cab/Amp block in the current preset toward a mic'd-amp-in-a-room
+   *  feel — cap Cab High Cut at 4500Hz (only lowers blocks currently set above it), floor Cab Room
+   *  Level at 30% (only raises blocks currently set below it), and set every Amp's Output Comp to
+   *  Gain Enhancer @ 2.8. Params are matched by name (never a hardcoded paramId — it differs per
+   *  device/family), so this works unmodified across FM3/FM9/III/VP4. One preset-wide undo step. */
+  #applyingAmpInTheRoom = false;
+  applyAmpInTheRoom = async () => {
+    if (!this.isV2 || this.#applyingAmpInTheRoom) return;
+    this.#applyingAmpInTheRoom = true;
+    try {
+      // pack slugs are capitalized (catalog.ts CATALOG keys), e.g. 'Cab' / 'Amp' — NOT the
+      // lowercase Category type from blocks.ts, which is a different, unrelated enum.
+      const all = [...this.layout.cells, ...this.layout.shunts];
+      const cabs = all.filter((c) => c.pack === 'Cab');
+      const amps = all.filter((c) => c.pack === 'Amp');
+      const ops: import('./history.svelte').HistoryOp[] = [];
+      const touched = new Set<number>();
+
+      // only records history / counts a block as touched once the device confirms the write —
+      // a failed write (dropped/timed-out) must not appear in the undo log or the toast count.
+      const writeContinuous = async (cell: Cell, p: NamedParam, value: number) => {
+        if (p.id == null || p.min == null || p.max == null) return;
+        const norm = normFromValue(value, p);
+        const from = p.norm ?? normFromValue(p.value, p);
+        if (Math.abs(from - norm) < 1e-6) return; // already there — no-op, keep history clean
+        const ok = await forgefx.setParam(cell.effectId, p.id, norm, true).then(() => true, () => false);
+        if (!ok) return;
+        ops.push({ kind: 'param', eid: cell.effectId, paramId: p.id, continuous: true, from, to: norm,
+          block: cell.display, param: p.name, min: p.min, max: p.max, unit: p.unit, log: p.log });
+        touched.add(cell.effectId);
+      };
+
+      for (const cell of cabs) {
+        const r = await forgefx.blockParams(cell.effectId).catch(() => null);
+        if (!r) continue;
+        const hicut = r.named.find((p) => p.name === 'CABINET_HICUT');
+        if (hicut && hicut.value > 4500) await writeContinuous(cell, hicut, 4500);
+        const room = r.named.find((p) => p.name === 'CABINET_ROOMMIX');
+        if (room && room.value < 30) await writeContinuous(cell, room, 30);
+      }
+
+      for (const cell of amps) {
+        const r = await forgefx.blockParams(cell.effectId).catch(() => null);
+        if (!r) continue;
+        const compType = r.enums.find((e) => e.name === 'DISTORT_COMPTYPE');
+        const gainEnhancer = compType?.options.find((o) => /gain enhancer/i.test(o.label));
+        if (compType && gainEnhancer && compType.value !== gainEnhancer.value) {
+          const ok = await forgefx.setParam(cell.effectId, compType.id, gainEnhancer.value, false).then(() => true, () => false);
+          if (ok) {
+            ops.push({ kind: 'param', eid: cell.effectId, paramId: compType.id, continuous: false,
+              from: compType.value, to: gainEnhancer.value, block: cell.display, param: compType.name,
+              fromLabel: compType.options.find((o) => o.value === compType.value)?.label, toLabel: gainEnhancer.label });
+            touched.add(cell.effectId);
+          }
+        }
+        const outComp = r.named.find((p) => p.name === 'DISTORT_COMPRESSION');
+        if (outComp) await writeContinuous(cell, outComp, 2.8);
+      }
+
+      if (!ops.length) { this.showToast('Already amp-in-the-room', '#35c9d6'); return; }
+      history.recordComposite('Amp in the Room', ops);
+      await this.load();
+      this.showToast(`Amp in the Room applied to ${touched.size} block(s)`, '#35c9d6');
+    } finally {
+      this.#applyingAmpInTheRoom = false;
+    }
   };
 
   // ── palette openers ──
