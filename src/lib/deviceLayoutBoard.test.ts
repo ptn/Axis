@@ -1,5 +1,18 @@
 import { describe, it, expect } from 'vitest';
-import { buildDeviceLayoutBoard, layoutVariantSig, railControls, monitorsByFamily, packInto, packRows, repackWidgets, MAX_ROWS, type BoardCtl, type SurfaceWidget } from './deviceLayoutBoard';
+import {
+  buildDeviceLayoutBoard,
+  layoutVariantSig,
+  healBoardWithLayout,
+  railControls,
+  monitorsByFamily,
+  packInto,
+  packRows,
+  repackWidgets,
+  MAX_ROWS,
+  type BoardCtl,
+  type SurfaceWidget,
+  type SurfaceBoard
+} from './deviceLayoutBoard';
 import type { DeviceLayout, LayoutControl, LayoutWidget } from './types';
 
 // ── catalog builders (mirror ControlSurface's live catalog entries) ──
@@ -25,6 +38,55 @@ const layout = (pages: DeviceLayout['pages'], extra: Partial<DeviceLayout> = {})
 });
 
 const find = (ws: SurfaceWidget[], key: string): SurfaceWidget => ws.find((w) => w.key === key)!;
+
+/** No two (non-rail) widgets on a board share a grid cell — rail widgets render in their own fixed
+ *  sidebar zone, entirely outside this grid, so their x/y are irrelevant here. This is the actual
+ *  regression check for the `positionExact` placement bugs (HEADROOM/Cab-cluster/Align-page cards
+ *  literally overlapping other controls) — every fixture that carries `positionExact` controls asserts it. */
+const assertNoOverlap = (ws: SurfaceWidget[]) => {
+  const seen = new Set<string>();
+  for (const w of ws) {
+    if (w.rail) continue;
+    for (let y = w.y; y < w.y + w.h; y++)
+      for (let x = w.x; x < w.x + w.w; x++) {
+        const key = `${x},${y}`;
+        expect(seen.has(key)).toBe(false);
+        seen.add(key);
+      }
+  }
+};
+
+describe('healBoardWithLayout — self-heals a saved board against the current device layout', () => {
+  const w = (key: string, x: number, y: number, wid = 1, h = 1): SurfaceWidget => ({ id: `w${key}`, key, x, y, w: wid, h, view: 'knob' });
+
+  it('adds a widget the fresh layout has but the saved board is missing (a param reclassified knob -> toggle, e.g. Zoom)', () => {
+    // saved board predates a server-side classification fix: paramId 40 used to resolve to a knob (`k40`)
+    // and reconcile() already dropped it once the catalog stopped serving that key — the fresh layout now
+    // places it as `e40` (a toggle) instead.
+    const saved: SurfaceBoard = { pageOrder: ['Align'], page: 'Align', boards: { Align: [w('k16', 0, 0), w('k17', 1, 0)] } };
+    const fresh: SurfaceBoard = { pageOrder: ['Align'], page: 'Align', boards: { Align: [w('k16', 0, 0), w('k17', 1, 0), w('e40', 2, 0)] } };
+    const healed = healBoardWithLayout(saved, fresh, 8, 4);
+    expect(healed.boards.Align.map((x) => x.key).sort()).toEqual(['e40', 'k16', 'k17']);
+    // existing widgets keep their exact saved position — healing never reflows them
+    expect(find(healed.boards.Align, 'k16')).toMatchObject({ x: 0, y: 0 });
+    expect(find(healed.boards.Align, 'k17')).toMatchObject({ x: 1, y: 0 });
+    assertNoOverlap(healed.boards.Align);
+  });
+
+  it('appends a page the saved board never had, when everything the fresh layout puts there is new', () => {
+    const saved: SurfaceBoard = { pageOrder: ['Main'], page: 'Main', boards: { Main: [w('k1', 0, 0)] } };
+    const fresh: SurfaceBoard = { pageOrder: ['Main', 'Extra'], page: 'Main', boards: { Main: [w('k1', 0, 0)], Extra: [w('e2', 0, 0)] } };
+    const healed = healBoardWithLayout(saved, fresh, 8, 4);
+    expect(healed.pageOrder).toEqual(['Main', 'Extra']);
+    expect(healed.boards.Extra!.map((x) => x.key)).toEqual(['e2']);
+  });
+
+  it('is a no-op (same object reference) when nothing is missing', () => {
+    const saved: SurfaceBoard = { pageOrder: ['Main'], page: 'Main', boards: { Main: [w('k1', 0, 0)] } };
+    const fresh: SurfaceBoard = { pageOrder: ['Main'], page: 'Main', boards: { Main: [w('k1', 5, 5)] } }; // key already present — its fresh position is irrelevant
+    expect(healBoardWithLayout(saved, fresh, 8, 4)).toBe(saved);
+  });
+});
 
 describe('railControls — the block-level rail for layouts with no `mixer` section', () => {
   const page = (name: string, ids: number[], section = 'parameters') => ({
