@@ -430,7 +430,7 @@
     {/if}
   </div>
 {:else if kind === 'scenes'}
-  <div class="axis-widget chips" data-size={size}>
+  <div class="axis-widget chips scenes" data-size={size}>
     {#if expanded}<span class="mono token">SCN</span>{/if}
     <div class="chip-row">
       {#each Array(sceneCount) as _, i}
@@ -870,6 +870,7 @@
     border-radius: 8px;
   }
   .axis-preset {
+    flex: 1 1 0;
     padding: 0;
     gap: 0;
   }
@@ -883,6 +884,7 @@
     cursor: pointer;
   }
   .preset-main {
+    flex: 1 1 0;
     min-width: 0;
     gap: 9px;
     padding: 0 8px;
@@ -899,7 +901,7 @@
     font-weight: 800;
   }
   .preset-name {
-    max-width: 150px;
+    flex: 1 1 0;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -907,9 +909,12 @@
     font-size: 13px;
     font-weight: 600;
   }
-  /* active scene name — same truncation contract as .preset-name (TopBar .scn-name parity) */
+  .axis-widget.scenes {
+    flex: 1 1 0;
+  }
+  /* Active scene name shares the top-bar space with the preset name. */
   .axis-widget .scene-name {
-    max-width: 120px;
+    flex: 1 1 0;
     min-width: 0;
     overflow: hidden;
     white-space: nowrap;
@@ -939,7 +944,8 @@
     font-style: italic;
   }
   .axis-widget .scene-name-in {
-    width: 120px;
+    flex: 1 1 0;
+    min-width: 0;
     color: var(--text);
     background: var(--bg2);
     border: 1px solid var(--accent);
@@ -954,12 +960,6 @@
   [data-size='compact'] .scene-name-in {
     font-size: 11.5px;
     padding: 2px 5px;
-  }
-  [data-size='compact'] .scene-name {
-    max-width: 96px;
-  }
-  [data-size='compact'] .scene-name-in {
-    width: 96px;
   }
   .mono {
     font-family: var(--font-mono);
