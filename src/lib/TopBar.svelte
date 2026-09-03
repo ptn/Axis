@@ -412,8 +412,8 @@
     cursor: default;
   }
   .pname-in {
-    font-size: 13px;
-    font-weight: 600;
+    font-size: 17px;
+    font-weight: 700;
     width: 150px;
     color: var(--text);
     background: transparent;
@@ -451,8 +451,8 @@
     color: var(--amber);
   }
   .pname {
-    font-size: 13px;
-    font-weight: 600;
+    font-size: 17px;
+    font-weight: 700;
     color: var(--text);
     white-space: nowrap;
     overflow: hidden;
@@ -476,8 +476,8 @@
     letter-spacing: 0.1em;
   }
   .scn-name {
-    font-size: 12px;
-    font-weight: 600;
+    font-size: 15px;
+    font-weight: 700;
     color: var(--text-2, var(--text-dim));
     max-width: 140px;
     white-space: nowrap;
@@ -498,8 +498,8 @@
     font-style: italic;
   }
   .scn-name-in {
-    font-size: 12px;
-    font-weight: 600;
+    font-size: 15px;
+    font-weight: 700;
     width: 140px;
     color: var(--text);
     background: var(--panel-2);
